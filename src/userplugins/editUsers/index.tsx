@@ -2,7 +2,7 @@ import "./styles.css";
 
 import { findGroupChildrenByChildId, NavContextMenuPatchCallback } from "@api/ContextMenu";
 import definePlugin from "@utils/types";
-import { Alerts, ChannelStore, Menu } from "@webpack/common";
+import { Alerts, ChannelStore, Menu, UserStore } from "@webpack/common";
 
 import { openEditUserModal } from "./components/EditUserModal";
 import { UserBadge } from "./components/UserBadge";
@@ -18,11 +18,12 @@ import { bannerState, clearCaches } from "./userData";
 let unpatch: Array<() => void> = [];
 let unsubscribe: (() => void) | null = null;
 
-const userContextMenu: NavContextMenuPatchCallback = (children, { user }: { user?: any; }) => {
-    if (!user) return;
+const userContextMenu: NavContextMenuPatchCallback = (children, { user, userId }: { user?: any; userId?: string; }) => {
+    const resolvedUser = user ?? (userId ? UserStore.getUser(userId) : undefined);
+    if (!resolvedUser) return;
 
     const reset = (e?: { shiftKey?: boolean; }) => {
-        const remove = () => store.remove(user.id);
+        const remove = () => store.remove(resolvedUser.id);
         if (e?.shiftKey) remove();
         else Alerts.show({
             title: t("reset"),
@@ -35,12 +36,12 @@ const userContextMenu: NavContextMenuPatchCallback = (children, { user }: { user
 
     const item = (
         <Menu.MenuItem id="eu-local-settings" label={t("context")}>
-            <Menu.MenuItem id="eu-change" label={t("change")} action={() => openEditUserModal(user)} />
+            <Menu.MenuItem id="eu-change" label={t("change")} action={() => openEditUserModal(resolvedUser)} />
             <Menu.MenuItem
                 id="eu-reset"
                 label={t("reset")}
                 color="danger"
-                disabled={!store.get(user.id)}
+                disabled={!store.get(resolvedUser.id)}
                 action={reset as any}
             />
         </Menu.MenuItem>
@@ -71,11 +72,14 @@ export default definePlugin({
 
     patchBannerUrl({ displayProfile }: any): string | undefined {
         const data = displayProfile?.userId ? store.get(displayProfile.userId) : undefined;
-        return bannerState(data) === "custom" ? data!.banner : undefined;
+        const state = bannerState(data);
+        console.log("[EditUsers] patchBannerUrl", displayProfile?.userId, state, data?.banner?.slice(0, 40));
+        return state === "custom" ? data!.banner : undefined;
     },
 
     contextMenus: {
-        "user-context": userContextMenu
+        "user-context": userContextMenu,
+        "user-profile-overflow-menu": userContextMenu
     },
 
     // Тег рядом с ником в сообщениях и в списке участников.
